@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Minesweeper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+        }
+        #controls {
+            margin: 20px;
+        }
+        #grid {
+            border: 2px solid #777;
+            display: grid;
+            background-color: #bbb;
+            gap: 1px;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            background-color: #ccc;
+            border: 1px solid #fff;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+        .cell.revealed {
+            background-color: #ddd;
+            border: 1px solid #bbb;
+            cursor: default;
+        }
+        .cell.mine {
+            background-color: #f00;
+        }
+        .cell.flagged {
+            background-color: #ff0;
+        }
+        .c1 { color: blue; }
+        .c2 { color: green; }
+        .c3 { color: red; }
+        .c4 { color: darkblue; }
+        .c5 { color: darkred; }
+        .c6 { color: teal; }
+        .c7 { color: black; }
+        .c8 { color: gray; }
+    </style>
+</head>
+<body>
+
+    <h1>Minesweeper</h1>
+    <div id="controls">
+        <button onclick="initGame()">リスタート</button>
+        <span id="status"></span>
+    </div>
+    <div id="grid"></div>
+
+    <script>
+        const ROWS = 9;
+        const COLS = 9;
+        const MINES = 10;
+        
+        let board = [];
+        let revealed = [];
+        let flagged = [];
+        let gameOver = false;
+
+        function initGame() {
+            board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            revealed = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+            flagged = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+            gameOver = false;
+            document.getElementById("status").textContent = "";
+
+            let minesPlaced = 0;
+            while (minesPlaced < MINES) {
+                let r = Math.floor(Math.random() * ROWS);
+                let c = Math.floor(Math.random() * COLS);
+                if (board[r][c] !== "M") {
+                    board[r][c] = "M";
+                    minesPlaced++;
+                }
+            }
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (board[r][c] === "M") continue;
+                    let count = 0;
+                    for (let dr = -1; dr <= 1; dr++) {
+                        for (let dc = -1; dc <= 1; dc++) {
+                            let nr = r + dr;
+                            let nc = c + dc;
+                            if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && board[nr][nc] === "M") {
+                                count++;
+                            }
+                        }
+                    }
+                    board[r][c] = count;
+                }
+            }
+
+            render();
+        }
+
+        function render() {
+            const gridDom = document.getElementById("grid");
+            gridDom.innerHTML = "";
+            gridDom.style.gridTemplateColumns = `repeat(${COLS}, 30px)`;
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cellDom = document.createElement("div");
+                    cellDom.classList.add("cell");
+
+                    if (revealed[r][c]) {
+                        cellDom.classList.add("revealed");
+                        if (board[r][c] === "M") {
+                            cellDom.classList.add("mine");
+                            cellDom.textContent = "💣";
+                        } else if (board[r][c] > 0) {
+                            cellDom.textContent = board[r][c];
+                            cellDom.classList.add(`c${board[r][c]}`);
+                        }
+                    } else if (flagged[r][c]) {
+                        cellDom.classList.add("flagged");
+                        cellDom.textContent = "🚩";
+                    }
+
+                    cellDom.addEventListener("click", () => handleClick(r, c));
+                    cellDom.addEventListener("contextmenu", (e) => {
+                        e.preventDefault();
+                        handleRightClick(r, c);
+                    });
+
+                    gridDom.appendChild(cellDom);
+                }
+            }
+        }
+
+        function handleClick(r, c) {
+            if (gameOver || revealed[r][c] || flagged[r][c]) return;
+
+            revealed[r][c] = true;
+
+            if (board[r][c] === "M") {
+                revealAllMines();
+                document.getElementById("status").textContent = "ゲームオーバー";
+                gameOver = true;
+            } else if (board[r][c] === 0) {
+                revealNeighbors(r, c);
+            }
+
+            if (!gameOver && checkWin()) {
+                document.getElementById("status").textContent = "クリア！";
+                gameOver = true;
+            }
+
+            render();
+        }
+
+        function handleRightClick(r, c) {
+            if (gameOver || revealed[r][c]) return;
+            flagged[r][c] = !flagged[r][c];
+            render();
+        }
+
+        function revealNeighbors(r, c) {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    let nr = r + dr;
+                    let nc = c + dc;
+                    if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !revealed[nr][nc] && !flagged[nr][nc]) {
+                        revealed[nr][nc] = true;
+                        if (board[nr][nc] === 0) {
+                            revealNeighbors(nr, nc);
+                        }
+                    }
+                }
+            }
+        }
+
+        function revealAllMines() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (board[r][c] === "M") {
+                        revealed[r][c] = true;
+                    }
+                }
+            }
+        }
+
+        function checkWin() {
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    if (board[r][c] !== "M" && !revealed[r][c]) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
